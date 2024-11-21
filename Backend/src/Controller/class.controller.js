@@ -1,4 +1,4 @@
-import {Class} from '../models/class.model.js'
+import Class from '../models/class.model.js'
 import { ApiError } from '../utils/apiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { asyncHandler } from '../utils/asyncHandler.js'
@@ -17,7 +17,12 @@ const registerClass = asyncHandler(async (req, res) => {
   res.status(201).json(new ApiResponse(201,"Class created successfully",createClass));
 });
 const getAllClass=asyncHandler(async(req,res)=>{
-
+     const {page=1,limit=10}=req.query;
+     const totalClass=await Class.aggregate([
+      { $skip: (page-1)*limit },    
+      { $limit: pageLimit },
+      { $sort: { createdAt: -1 } }
+     ])
 })
 const assignTeacherToClass = async (req, res) => {
   try {
@@ -28,7 +33,7 @@ const assignTeacherToClass = async (req, res) => {
     }
     res.status(200).json(new ApiResponse(200,'Teacher assigned successfully',updatedClass ));
   } catch (err) {
-    res.status(500).json({ message: 'Error assigning teacher', error: err.message });
+    res.status(500).json(new ApiResponse(500,'Error assigning teacher', err.message ));
   }
 };
 const updateClass = async (req, res) => {
@@ -47,7 +52,7 @@ const updateClass = async (req, res) => {
 
     res.status(200).json(new ApiResponse( 200, 'Class updated successfully', updatedClass ));
   } catch (err) {
-    res.status(500).json({ message: 'Error updating class', error: err.message });
+    res.status(500).json(new ApiResponse( 500, 'Error updating class', err.message ));
   }
 };
 const deleteClass = async (req, res) => {

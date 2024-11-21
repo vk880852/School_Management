@@ -1,6 +1,10 @@
 import {Router} from 'express'
 import {upload} from '../middlewares/multer.middleware.js'
 import { verifyJWT } from '../middlewares/auth.middleware.js';
+import {Registerowner,
+getAllStudent,
+getStudentById,
+updateStudent} from '../Controller/students.controller.js'
 const router = Router();
 
 router.use(verifyJWT);

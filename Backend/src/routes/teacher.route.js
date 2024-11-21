@@ -5,7 +5,7 @@ import {
     getTeacher,
     updateAccountDetails,
     updateprofileImageUrl
-} from '../controllers/teacher.controller.js';
+} from '../Controller/teacher.controller.js'
 import { upload } from '../middlewares/multer.middleware.js';
 import { verifyJWT } from '../middlewares/auth.middleware.js';
 

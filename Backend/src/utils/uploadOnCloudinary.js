@@ -1,5 +1,4 @@
-import { asyncHandler } from "./asyncHandler";
-
+import {asyncHandler} from '../utils/asyncHandler.js'
 const uploadOnCloudinary=asyncHandler(async(file)=>{
        try{
         if(!file)

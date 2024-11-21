@@ -1,5 +1,5 @@
 import { isValidObjectId } from 'mongoose';
-import {Student} from '../models/student.model.js';
+import Student from '../models/student.model.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { deleteOnCloudinary, uploadOnCloudinary } from '../utils/uploadOnCloudinary.js';

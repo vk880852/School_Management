@@ -99,4 +99,4 @@ const updateprofileImageUrl = asyncHandler(async (req, res) => {
     });
 });
 
-export{updateprofileImageUrl,updateAccountDetails,getTeacher,registerTeacher}
+export{updateprofileImageUrl,updateAccountDetails,getTeacher,getAllTeacher,registerTeacher}

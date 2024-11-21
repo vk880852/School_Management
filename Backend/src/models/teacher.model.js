@@ -4,7 +4,6 @@ const teacherSchema = new Schema({
   name: {
     type: String,
     required: true, 
-    type:String,
     trim:true,
     index:true
   },
@@ -12,7 +11,6 @@ const teacherSchema = new Schema({
     type: String,
     required: true, 
     unique:true,
-    lowercase:true,
     trim:true,
   },
   subject: {
