@@ -1,11 +1,9 @@
 import {v2 as cloudinary} from 'cloudinary';
 import fs from 'fs'
 import dotenv from 'dotenv';
+import { ApiError } from './apiError.js';
 dotenv.config({});
-// console.log('Cloudinary Config:');
-// console.log('Cloud Name:', process.env.CLOUD_NAME);
-// console.log('API Key:', process.env.API_KEY);
-// console.log('API Secret:', process.env.API_SECRET);
+
 cloudinary.config({ 
     cloud_name: process.env.CLOUD_NAME, 
     api_key: process.env.API_KEY, 
@@ -14,7 +12,6 @@ cloudinary.config({
   const uploadOnCloudinary=async(localpath)=>{
     try{
          if(!localpath)return null;
-         console.log("this is localpath",localpath)
             const res=  await cloudinary.uploader.upload(localpath,{
             resource_type:'auto'
          })
@@ -28,15 +25,25 @@ cloudinary.config({
         return null
     }
 }
-const deleteOnCloudinary=async(localpath)=>{
-  try{
-     await cloudinary.uploader.destroy(localpath,{ type: 'upload', resource_type: 'auto' });
+const deleteOnCloudinary = async (publicId) => {
+  try {
+    if (!publicId) {
+      throw new Error('Public ID is required to delete the file');
+    }    
+    const result = await cloudinary.uploader.destroy(publicId, { type: 'upload', resource_type: 'image' });
+    if (result.result !== 'ok') {
+      throw new Error(`Failed to delete the file: ${result.error.message || result.result}`);
+    }
+
+    return result;
+
+  } catch (error) {
+    console.error(`Failed to delete file from Cloudinary: ${error.message}`);
+    
+    throw new ApiError(401, `Failed to delete file: ${error.message}`);
   }
-  catch(error)
-  {
-    throw new ApiError("failed during deletion",error);
-  }
-}
+};
+
 
 
 export { uploadOnCloudinary,deleteOnCloudinary};

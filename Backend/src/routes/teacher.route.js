@@ -4,7 +4,8 @@ import {
     getAllTeacher,
     getTeacher,
     updateAccountDetails,
-    updateprofileImageUrl
+    updateprofileImageUrl,
+    deleteTeacherProfile
 } from '../Controller/teacher.controller.js'
 import { upload } from '../middlewares/multer.middleware.js';
 import { verifyJWT } from '../middlewares/auth.middleware.js';
@@ -13,14 +14,15 @@ const router = Router();
 
 router.use(verifyJWT);
 
-router.post('/teachers', upload.fields([{ name: 'avatar', maxCount: 1 }]), registerTeacher);
+router.post('/register-teacher', upload.fields([{ name: 'avatar', maxCount: 1 }]), registerTeacher);
 
-router.get('/teachers', getAllTeacher);
+router.get('/', getAllTeacher);
 
-router.get('/teachers/:teacherId', getTeacher);
+router.get('/:teacherId', getTeacher);
 
-router.put('/teachers/:teacherId/update', updateAccountDetails);
+router.put('/:teacherId/update', updateAccountDetails);
 
-router.put('/teachers/:teacherId/update-avatar', upload.single('avatar'), updateprofileImageUrl);
+router.put('/:teacherId/update-avatar', upload.single('avatar'), updateprofileImageUrl);
+router.delete('/:teacherId',deleteTeacherProfile);
 
 export default router;

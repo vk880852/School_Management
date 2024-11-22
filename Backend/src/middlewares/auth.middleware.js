@@ -3,7 +3,7 @@ import jwt  from "jsonwebtoken";
 import { ApiError } from "../utils/apiError.js";
 import { Owner } from "../models/owner.model.js";
 export const verifyJWT=asyncHandler(async(req,res,next)=>{
-      const token = (req.cookies?.accesstoken) || (req.header("Authorization")?.replace("Bearer ", ""));
+      const token = (req.cookies?.accesstoken) || req.headers?.authorization?.replace("Bearer ","")
       if(!token)
       {
         throw new ApiError(401,"Unauthorised token");

@@ -1,8 +1,8 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { Owner } from "../models/owner.model.js";
-import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { uploadOnCloudinary } from "../utils/uploadOnCloudinary.js";
+import { uploadOnCloudinary,deleteOnCloudinary } from "../utils/uploadOnCloudinary.js";
+import { ApiError } from "../utils/apiError.js";
 
 const generateAccesstoken=async(user)=>{
 try {
@@ -87,25 +87,25 @@ const loginUser=asyncHandler(async(req,res)=>{
 
     return res
     .status(200)
-    .cookie("accessToken", accesstoken, options)
+    .cookie("accesstoken", accesstoken, options)
     .json(
         new ApiResponse(
             200, 
+              "User logged In Successfully",
             {
-                user: loggedInUser, accesstoken
-            },
-            "User logged In Successfully"
+                user: loggedInUser
+            }
         )
     )
 
     
 })
 const logoutUser=asyncHandler(async(req,res)=>{
-    await User.findByIdAndUpdate(
+    await Owner.findByIdAndUpdate(
         req.user._id,
         {
             $unset: {
-                refreshToken: 1 // this removes the field from document
+                accesstoken: 1 
             }
         },
         {
@@ -121,14 +121,13 @@ const logoutUser=asyncHandler(async(req,res)=>{
     return res
     .status(200)
     .clearCookie("accessToken", options)
-    .clearCookie("refreshToken", options)
-    .json(new ApiResponse(200, {}, "User logged Out"))
+    .json(new ApiResponse(200,"User logged Out",{}))
 })
 const changeCurrentPassword = asyncHandler(async(req, res) => {
     const {oldPassword, newPassword} = req.body
 
     const user = await Owner.findById(req.user?._id)
-    const isPasswordCorrect = await Owner.isPasswordCorrect(oldPassword)
+    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
 
     if (!isPasswordCorrect) {
         throw new ApiError(400, "Invalid old password")
@@ -136,10 +135,10 @@ const changeCurrentPassword = asyncHandler(async(req, res) => {
 
     user.password = newPassword
     await user.save({validateBeforeSave: false})
-
+    const newUser=await Owner.findById(req.user._id).select("-accesstoken -password -avatar");
     return res
     .status(200)
-    .json(new ApiResponse(200, {}, "Password changed successfully"))
+    .json(new ApiResponse(200, "Password changed successfully",newUser))
 })
 const getCurrentUser = asyncHandler(async(req, res) => {
     return res
@@ -153,6 +152,7 @@ const getCurrentUser = asyncHandler(async(req, res) => {
 const updateAccountDetails = asyncHandler(async(req, res) => {
     const {fullName, email} = req.body
 
+    console.log({fullName, email});
     if (!fullName || !email) {
         throw new ApiError(400, "All fields are required")
     }
@@ -175,26 +175,37 @@ const updateAccountDetails = asyncHandler(async(req, res) => {
 });
 
 const updateUserAvatar = asyncHandler(async(req, res) => {
-    const avatarLocalPath = req.file?.path
-
+    const avatarLocalPath = req.files?.avatar?.[0]?.path
     if (!avatarLocalPath) {
         throw new ApiError(400, "Avatar file is missing")
     }
+   
+
     const oldAvatar = req.user.avatar;
     const avatarh = oldAvatar.split("/");
-    const publicIdavatar= avatarh[avatarh.length - 1].split(".")[0];
-    deleteOnCloudinary(publicIdavatar);
-    const avatar =  uploadOnCloudinary(avatarLocalPath)
-    if (!avatar.url) {
-        throw new ApiError(400, "Error while uploading on avatar")
-        
+    const publicId= avatarh[avatarh.length - 1].split(".")[0];
+    if(publicId)
+    {
+      const result=await deleteOnCloudinary(publicId);
+      if(result==='ok')
+      {
+         await Owner.findByIdAndUpdate(req.user?._id,{
+            $unset:{
+                avatar:1
+            }
+         })
+      }
+    }
+    const avatar1 = await uploadOnCloudinary(avatarLocalPath);
+    if (!avatar1||!avatar1.url) {
+        throw new ApiError(400,"Error while uploading new Avatar");
     }
 
     const user = await Owner.findByIdAndUpdate(
         req.user?._id,
         {
             $set:{
-                avatar: avatar.url
+                avatar: avatar1.url
             }
         },
         {new: true}
@@ -203,7 +214,7 @@ const updateUserAvatar = asyncHandler(async(req, res) => {
     return res
     .status(200)
     .json(
-        new ApiResponse(200, user, "Avatar image updated successfully")
+        new ApiResponse(200,"Avatar image updated successfully",user)
     )
 })
 

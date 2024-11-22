@@ -1,16 +1,45 @@
-import Teacher from "../models/student.model.js";
+import mongoose from "mongoose";
+import Teacher from "../models/teacher.model.js";
 import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { deleteOnCloudinary } from "../utils/uploadOnCloudinary.js";
+import { deleteOnCloudinary, uploadOnCloudinary } from "../utils/uploadOnCloudinary.js";
 
 
-const getAllTeacher=asyncHandler(async(req,res)=>{
+const getAllTeacher = asyncHandler(async (req, res) => {
+    const { page = 1, limit = 1 } = req.query;
 
-})
+    const pageNumber = parseInt(page);
+    const limitNumber = parseInt(limit);
+
+    const result = await Teacher.aggregate([
+        {
+            $match: {
+                owner: new mongoose.Types.ObjectId(req.user._id),
+            }
+        },
+        {
+            $facet: {
+                data: [
+                    { $skip: (pageNumber - 1) * limitNumber }, 
+                    { $limit: limitNumber }, 
+                ],
+                totalCount: [
+                    { $count: "total" }, 
+                ],
+            },
+        },
+    ]);
+
+    const teachers = result[0].data;
+    const totalTeachers = result[0].totalCount.length > 0 ? result[0].totalCount[0].total : 0;
+
+    return res.status(200).json(new ApiResponse(200, "All data are fetched", { teachers, totalTeachers }));
+});
+
 const registerTeacher=asyncHandler(async(req,res)=>{
     const {name,email,subject}=req.body;
-    if([name,email,subject,profileImageUrl].some((x)=>(x?.trim()==="")))
+    if([name,email,subject].some((x)=>(x?.trim()==="")))
     {
         throw new ApiError(500,"All Fields are required");
     }
@@ -20,22 +49,23 @@ const registerTeacher=asyncHandler(async(req,res)=>{
         throw new ApiError(402,"this email is already exist");
     }
     const avatarPath=req.files?.avatar?.[0]?.path||"";
-    const uploadAvatar=avatarPath?uploadOnCloudinary(avatarPath):"";
+    const uploadAvatar=avatarPath?await uploadOnCloudinary(avatarPath):"";
     if(!uploadAvatar)
     {
         throw new ApiError(402,"image is required");
     }
-    const newTeacher=await Owner.create({
+    console.log(uploadAvatar);
+    const newTeacher=await Teacher.create({
         name:name,
         email:email,
         subject:subject,
-        profileImageUrl:uploadAvatar,
+        profileImageUrl:uploadAvatar.url,
         owner:req.user._id
     })
     if (!newTeacher) {
         throw new ApiError(500, "Error creating ");
     }
-    const createdTeacher = await User.findById(newTeacher._id);
+    const createdTeacher = await Teacher.findById(newTeacher._id);
     return res.status(201).json(new ApiResponse(200,"Teacher registered successfully",createdTeacher));
 
 })
@@ -52,18 +82,17 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
     const { name, subject } = req.body;
     const { teacherId } = req.params;
 
-    if ([name, subject].some((x) => x.trim() === "")) {
-        throw new ApiError(400, "Fill All information"); 
-    }
+    
 
     const existTeacher = await Teacher.findById(teacherId);
     if (!existTeacher) {
         throw new ApiError(404, "Teacher does not exist");
     }
-
+    const name1=name?name:Teacher.name;
+    const subject1=subject?subject:Teacher.subject;
     const updatedTeacher = await Teacher.findByIdAndUpdate(
         teacherId,
-        { name, subject },
+        { name:name1, subject:subject1 },
         { new: true } 
     );
 
@@ -74,9 +103,8 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 });
 const updateprofileImageUrl = asyncHandler(async (req, res) => {
     const { teacherId } = req.params;
-    const avatarLocalPath = req.file.path; // Assuming you're using multer for file upload and it's accessible here
-
-    // Check if the teacher exists
+    console.log(req.file);
+    const avatarLocalPath = req.file.path; 
     const existTeacher = await Teacher.findById(teacherId);
     if (!existTeacher) {
         throw new ApiError(404, "Teacher does not exist");
@@ -86,17 +114,36 @@ const updateprofileImageUrl = asyncHandler(async (req, res) => {
         const avatarPathParts = existTeacher.profileImageUrl.split("/");
         const publicIdavatar = avatarPathParts[avatarPathParts.length - 1].split(".")[0];
         await deleteOnCloudinary(publicIdavatar); 
+        await Teacher.findByIdAndUpdate(teacherId,{
+            $unset:{
+                profileImageUrl:1
+            }
+        }
+
+        )
     }
-
-    const uploadedAvatar = await uploadOnCloudinary(avatarLocalPath); // Make sure this function is asynchronous
-
-    existTeacher.profileImageUrl = uploadedAvatar.secure_url; 
+    const uploadedAvatar = await uploadOnCloudinary(avatarLocalPath); 
+    existTeacher.profileImageUrl = uploadedAvatar.url; 
     await existTeacher.save();
 
-    res.status(200).json({
-        message: "Profile image updated successfully",
-        teacher: existTeacher,
-    });
+    res.status(200).json(new ApiResponse(200,
+         "Profile image updated successfully",
+        existTeacher,
+    ));
 });
+const deleteTeacherProfile = asyncHandler(async (req, res) => {
+    const { teacherId } = req.params;
+    
+    const teacher = await Teacher.findById(teacherId);
+    
+    if (!teacher) {
+      return res.status(404).json(new ApiResponse(404, "Teacher not found"));
+    }
+  
+    await teacher.softDelete();
+    
+    return res.status(200).json(new ApiResponse(200, "Deleted Successfully"));
+  });
+  
 
-export{updateprofileImageUrl,updateAccountDetails,getTeacher,getAllTeacher,registerTeacher}
+export{updateprofileImageUrl,updateAccountDetails,getTeacher,getAllTeacher,registerTeacher,deleteTeacherProfile}
