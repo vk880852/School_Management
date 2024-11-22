@@ -4,13 +4,12 @@ import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { uploadOnCloudinary } from "../utils/uploadOnCloudinary.js";
 
-const generateAccesstoken=async(userId)=>{
+const generateAccesstoken=async(user)=>{
 try {
-        const exitUser=await Owner.findById(userId);
-        const accessToken=await exitUser.generateAccessToken();
-        user.accessToken = refreshToken
+        const accesstoken=await user.generateAccessToken();
+        user.accesstoken = accesstoken;
         await user.save({ validateBeforeSave: false })
-        return {accessToken}
+        return {accesstoken}
 } catch (error) {
     console.log('Something went wrong while generating access token');
     throw new ApiError(500, "Something went wrong while generating referesh and access token")
@@ -22,16 +21,20 @@ const Registerowner=asyncHandler(async(req,res)=>{
     {
         throw new ApiError(400,"All Fields are required");
     }
+
     if(firstPassword!==finalPassword)
     {
         throw new ApiError(203,"both password should be same");
     }
-    if(await Owner.findOne({$or:[username,email]}))
-    {
+    if (await Owner.findOne({ $or: [{ username }, { email }] })) {
         throw new ApiError(409, "Username or email already exists");
     }
-    const avatarPath=req.files?.avatar?.[0]?.path||"";
-    const uploadAvatar=avatarPath?uploadOnCloudinary(avatarPath):"";
+    const avatarPath = req.files?.avatar?.[0]?.path||"";
+    if(!avatarPath)
+    {
+        throw new ApiError(400, "Avatar file is required");
+    }
+    const uploadAvatar=await uploadOnCloudinary(avatarPath);
     if(!uploadAvatar)
     {
         throw new ApiError(402,"image is required");
@@ -41,37 +44,41 @@ const Registerowner=asyncHandler(async(req,res)=>{
         email:email,
         fullname:fullname,
         password:firstPassword,
-        avatar:uploadAvatar
+        avatar:uploadAvatar?.url||""
     })
     if (!newOwner) {
         throw new ApiError(500, "Error creating user");
     }
-    const createdOwner = await User.findById(newOwner._id).select("-password -refreshtoken");
+    const createdOwner = await Owner.findById(newOwner._id).select("-password -accesstoken");
     return res.status(201).json(new ApiResponse(200,"User registered successfully",createdOwner));
 
 })
 const loginUser=asyncHandler(async(req,res)=>{
     const {username,email,password}=req.body;
-    if(!email)
-    {
-        throw new ApiError(400,"email is required");
-    }
+     if(!(username||email))
+        {
+         throw new ApiError(400,"username and password is required");
+        }
+        const isUser=await Owner.findOne({$or:[{username},{email}]});
+        if(!isUser)
+        {
+            throw new ApiError(400,"user does not exist");
+        }
+  
     if(!password)
     {
         throw new ApiError(400,"password is required");
     }
-    const exitUser=await Owner.findOne({$or:[username,email]});
-    if(!exitUser)
-    {
-        throw new ApiError(400,"user does not exist");
-    }
-    const isPassword=Owner.isPassword(password);
+
+    const isPassword=await isUser.isPasswordCorrect(password);
     if(!isPassword)
     {
         console.log("password is not correct")
         throw new ApiError(201,"password is not correct");
     }
-    const loggedInUser = await Owner.findById(exitUser._id).select("-password accesstoken")
+    const {accesstoken}=await generateAccesstoken(isUser);
+
+    const loggedInUser = await Owner.findById(isUser._id).select("-password -accesstoken")
 
     const options = {
         httpOnly: true,
@@ -80,12 +87,12 @@ const loginUser=asyncHandler(async(req,res)=>{
 
     return res
     .status(200)
-    .cookie("accessToken", accessToken, options)
+    .cookie("accessToken", accesstoken, options)
     .json(
         new ApiResponse(
             200, 
             {
-                user: loggedInUser, accessToken, refreshToken
+                user: loggedInUser, accesstoken
             },
             "User logged In Successfully"
         )
