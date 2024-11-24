@@ -7,7 +7,7 @@ import { deleteOnCloudinary, uploadOnCloudinary } from "../utils/uploadOnCloudin
 
 
 const getAllTeacher = asyncHandler(async (req, res) => {
-    const { page = 1, limit = 1 } = req.query;
+    const { page = 1, limit = 2 } = req.query;
 
     const pageNumber = parseInt(page);
     const limitNumber = parseInt(limit);

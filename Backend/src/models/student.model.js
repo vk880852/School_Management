@@ -1,4 +1,5 @@
 import mongoose, { Schema } from "mongoose";
+import {softDeletePlugin} from 'soft-delete-plugin-mongoose'
 
 const studentSchema = new Schema({
   name: {
@@ -32,7 +33,7 @@ const studentSchema = new Schema({
   timestamps: true,  
 });
 
-
+studentSchema.plugin(softDeletePlugin);
 const Student = mongoose.model("Student", studentSchema);
 
 export default Student;

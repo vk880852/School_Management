@@ -49,13 +49,25 @@ const getAllStudent=asyncHandler(async(req,res)=>{
             }
         },
         {
-             $skip:(page-1)*limit,
-        },
-        {
-                $limit:limit
-        },
+            $facet:{
+                data:[
+                    {
+                        $skip:(page-1)*limit,
+                   },
+                   {
+                    $limit:limit
+                    },
+                ],
+                totalCount:[
+                    {
+                        $count:"total"
+                    },
+                ]
+            }
+        }
+
     ])
-    res.status(200).json(new ApiResponse(200,"All students list fetched",allStudent));
+    res.status(200).json(new ApiResponse(200,"All students list fetched",allStudent[0]));
 })
 const getStudentById = asyncHandler(async (req, res) => {
     const { studentId } = req.params;
@@ -65,39 +77,68 @@ const getStudentById = asyncHandler(async (req, res) => {
     } 
     return res.status(200).json(new ApiResponse(200,"Successfully retrive",student));
   });
-const updateStudent = asyncHandler(async (req, res) => {
+  const updateStudent = asyncHandler(async (req, res) => {
     const { studentId } = req.params;
-    const { name,classId} = req.body;
-    if(!name.trim()||!isValidObjectId(classId))
-    {
-        throw new ApiError(300,"either name is required or ClassId is not valid")
-    }
+    const { name, classId } = req.body;
+
+    // if (!name.trim() || !isValidObjectId(classId)) {
+    //     throw new ApiError(300, "Either name is required or ClassId is not valid");
+    // }
+
     const student = await Student.findById(studentId);
     if (!student) {
-      throw new ApiError(404, 'Student not found');
+        throw new ApiError(404, 'Student not found');
     }
-    const avatarLocalPath = req.file?.path
+
+    const avatarLocalPath = req.file?.path;
     if (!avatarLocalPath) {
-        throw new ApiError(400, "Avatar file is missing")
+        throw new ApiError(400, "Avatar file is missing");
     }
+
     const oldAvatar = student.profileImageUrl;
-    const avatarh = oldAvatar.split("/");
-    const publicIdavatar= avatarh[avatarh.length - 1].split(".")[0];
-    deleteOnCloudinary(publicIdavatar);
-    const avatar=uploadOnCloudinary(avatarLocalPath);
-    if (!avatar.url) {
-        throw new ApiError(400, "Error while uploading on avatar")
+    if (oldAvatar) {
+        const avatarParts = oldAvatar.split("/");
+        const publicIdAvatar = avatarParts[avatarParts.length - 1].split(".")[0];
+        await deleteOnCloudinary(publicIdAvatar);
+        
+        await Student.findByIdAndUpdate(studentId, {
+            $unset: { profileImageUrl: ""}
+        });
     }
-    student.name = name
-    student.classId = classId 
+
+    const avatar = await uploadOnCloudinary(avatarLocalPath);
+    if (!avatar.url) {
+        throw new ApiError(400, "Error while uploading avatar");
+    }
+    if(name.trim()!==null)
+    student.name = name;
+    if(isValidObjectId(classId))
+    student.class = classId;
     student.profileImageUrl = avatar.url;
+
     await student.save();
-    res.status(200).json(new ApiResponse(200,'Student updated successfully', student ));
-  });
+
+    res.status(200).json(new ApiResponse(200, 'Student updated successfully', student));
+});
+
+const deleteStudent = asyncHandler(async (req, res) => {
+    const { studentId } = req.params;
+    const student = await Student.findById(studentId);
+
+    if (!student) {
+        return res.status(404).json(new ApiResponse(404, "Student not found"));
+    }
+    // Soft delete by updating the deletedAt field
+    const options = { validateBeforeSave: false };
+     const deleted=await Student.softDelete({_id:studentId},options);
+    return res.status(200).json(new ApiResponse(200, "Deleted Successfully",deleted));
+});
+
   
 export{
     Registerowner,
     getAllStudent,
     getStudentById,
-    updateStudent
+    updateStudent,
+    deleteStudent
 }
