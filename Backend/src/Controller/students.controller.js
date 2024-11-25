@@ -6,7 +6,6 @@ import { deleteOnCloudinary, uploadOnCloudinary } from '../utils/uploadOnCloudin
 import { ApiError } from '../utils/apiError.js';
 const Registerowner=asyncHandler(async(req,res)=>{
     const {name,email}=req.body;
-    console.log(name,email);
     if([name,email].some((x)=>(x?.trim()==="")))
     {
         throw new ApiError(400,"All Fields are required");
@@ -77,7 +76,7 @@ const getStudentById = asyncHandler(async (req, res) => {
     } 
     return res.status(200).json(new ApiResponse(200,"Successfully retrive",student));
   });
-  const updateStudent = asyncHandler(async (req, res) => {
+const updateStudent = asyncHandler(async (req, res) => {
     const { studentId } = req.params;
     const { name, classId } = req.body;
 

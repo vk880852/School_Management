@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Class from '../models/class.model.js'
 import { ApiError } from '../utils/apiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
@@ -19,6 +20,11 @@ const registerClass = asyncHandler(async (req, res) => {
 const getAllClass=asyncHandler(async(req,res)=>{
      const {page=1,limit=10}=req.query;
      const totalClass=await Class.aggregate([
+      {
+        $match:{
+          owner:new mongoose.Types.ObjectId(req.user._id),
+        }
+      },
       { $skip: (page-1)*limit },    
       { $limit: pageLimit },
       { $sort: { createdAt: -1 } }
@@ -27,7 +33,8 @@ const getAllClass=asyncHandler(async(req,res)=>{
 })
 const assignTeacherToClass = async (req, res) => {
   try {
-    const { classId, teacherId } = req.body;
+    const {teacherId } = req.body;
+    const {classId}=req.params;
     const updatedClass = await Class.findByIdAndUpdate(classId, { teacherId }, { new: true });
     if (!updatedClass) {
       return res.status(404).json({ message: 'Class not found' });
@@ -39,8 +46,8 @@ const assignTeacherToClass = async (req, res) => {
 };
 const updateClass = async (req, res) => {
   try {
-    const { classId, name, teacherId } = req.body;
-
+    const { name, teacherId } = req.body;
+    const {classId}=req.params;
     const updatedClass = await Class.findByIdAndUpdate(
       classId,
       { name, teacherId },

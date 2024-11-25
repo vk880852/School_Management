@@ -13,9 +13,9 @@ const router = Router();
 
 router.use(verifyJWT);
 
-router.post('/classes', upload.fields([{ name: 'avatar', maxCount: 1 }]), registerClass);
+router.post('/register', registerClass);
 
-router.put('/classes/assign-teacher', assignTeacherToClass);
+router.put('/assign-teacher', assignTeacherToClass);
 
 router.get('/classes', getAllClass);
 
