@@ -1,14 +1,19 @@
 import mongoose, { isValidObjectId } from 'mongoose';
 import Student from '../models/student.model.js';
+import Class from '../models/class.model.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { deleteOnCloudinary, uploadOnCloudinary } from '../utils/uploadOnCloudinary.js';
 import { ApiError } from '../utils/apiError.js';
 const Registerowner=asyncHandler(async(req,res)=>{
-    const {name,email}=req.body;
+    const {name,email,classId}=req.body;
     if([name,email].some((x)=>(x?.trim()==="")))
     {
         throw new ApiError(400,"All Fields are required");
+    }
+    if(!isValidObjectId(classId))
+    {
+        throw new ApiError(400,"classId is not valid");
     }
     if(await Student.findOne({$or:[{email}]}))
     {
@@ -27,6 +32,7 @@ const Registerowner=asyncHandler(async(req,res)=>{
     const newStudent=await Student.create({
         name:name,
         email:email,
+        class:classId,
         profileImageUrl:uploadAvatar.url,
         owner:req.user._id
     })
@@ -34,40 +40,88 @@ const Registerowner=asyncHandler(async(req,res)=>{
         throw new ApiError(500, "Error creating newStudent Profile");
     }
     const createdStudent = await Student.findById(newStudent._id);
+    const existclass=await Class.findById(classId);
+    if(!existclass)
+    {
+        throw new ApiError(500,"class Does not exist");
+    }
+    const classSize = await Student.aggregate([
+        {
+          $match: {
+            owner: new mongoose.Types.ObjectId(req.user._id),
+            class: new mongoose.Types.ObjectId(classId),
+          },
+        },
+        {
+          $count: "size", 
+        },
+      ]);
+      
+      const studentCount = classSize.length > 0 ? classSize[0].size : 0;
+      
+      existclass.studentCount = studentCount;
+      await existclass.save();
     return res.status(201).json(new ApiResponse(200,"Student registered successfully",createdStudent));
 
 })
-const getAllStudent=asyncHandler(async(req,res)=>{
-     
+const getAllStudent = asyncHandler(async (req, res) => {
     let { page = 1, limit = 10 } = req.query;
+    page = parseInt(page);
+    limit = parseInt(limit);
 
-    const allStudent=await Student.aggregate([
+    const skip = (page - 1) * limit;
+
+    const allStudent = await Student.aggregate([
         {
-            $match:{
+            $match: {
                 owner: new mongoose.Types.ObjectId(req.user._id),
             }
         },
         {
-            $facet:{
-                data:[
+            $lookup: {
+                from: "classes",
+                localField: "class",
+                foreignField: "_id",
+                as: "class_result",
+                pipeline: [
                     {
-                        $skip:(page-1)*limit,
-                   },
-                   {
-                    $limit:limit
-                    },
+                        $project: {
+                            name: 1,
+                            teacher: 1,
+                            studentCount: 1
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $unwind: {
+                path: "$class_result",
+                preserveNullAndEmptyArrays: true // Optional: This ensures if there are no classes, it'll not break the aggregation
+            }
+        },
+        {
+            $facet: {
+                data: [
+                    { $skip: skip },
+                    { $limit: limit }
                 ],
-                totalCount:[
-                    {
-                        $count:"total"
-                    },
+                totalCount: [
+                    { $count: "total" }
                 ]
             }
         }
+    ]);
 
-    ])
-    res.status(200).json(new ApiResponse(200,"All students list fetched",allStudent[0]));
-})
+    const totalCount = allStudent[0]?.totalCount[0]?.total || 0;
+    const students = allStudent[0]?.data || [];
+
+    return res.status(200).json(new ApiResponse(200, "All students list fetched", {
+        students,
+        totalCount
+    }));
+});
+
 const getStudentById = asyncHandler(async (req, res) => {
     const { studentId } = req.params;
     const student = await Student.findById(studentId);
@@ -112,7 +166,28 @@ const updateStudent = asyncHandler(async (req, res) => {
     if(name.trim()!==null)
     student.name = name;
     if(isValidObjectId(classId))
-    student.class = classId;
+    {
+        const existclass=await Class.findById(classId);
+        if(!existclass)
+        {
+            throw new ApiError(500,"class Does not exist");
+        }
+        const classSize = await Student.aggregate([
+            {
+              $match: {
+                owner: new mongoose.Types.ObjectId(req.user._id),
+                class: new mongoose.Types.ObjectId(classId),
+              },
+            },
+            {
+              $count: "size", 
+            },
+          ]);
+          const studentCount = classSize.length > 0 ? classSize[0].size : 0;
+          existclass.studentCount = studentCount;
+          await existclass.save();
+          student.class=classId;
+    }
     student.profileImageUrl = avatar.url;
 
     await student.save();
@@ -127,9 +202,8 @@ const deleteStudent = asyncHandler(async (req, res) => {
     if (!student) {
         return res.status(404).json(new ApiResponse(404, "Student not found"));
     }
-    // Soft delete by updating the deletedAt field
     const options = { validateBeforeSave: false };
-     const deleted=await Student.softDelete({_id:studentId},options);
+    const deleted=await Student.softDelete({_id:studentId},options);
     return res.status(200).json(new ApiResponse(200, "Deleted Successfully",deleted));
 });
 
